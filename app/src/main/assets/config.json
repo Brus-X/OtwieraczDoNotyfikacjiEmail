@@ -1,0 +1,9 @@
+[
+  {
+    "name": "Szkoła",
+    "startUrl": "https://uczen.eduvulcan.pl/gminawiszniamala/App/",
+    "messageUrl": "https://wiadomosci.eduvulcan.pl/gminawiszniamala/App/odebrane",
+    "emailSender": "Dziennik VULCAN",
+    "subjectKeyword": "Wiadomość od użytkownika"
+  }
+]

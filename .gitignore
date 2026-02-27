@@ -1,0 +1,29 @@
+# Android Studio / IntelliJ
+*.iml
+.gradle
+/local.properties
+/.idea/
+.idea/
+*.ipr
+*.iws
+
+# Build outputs
+/build
+/*/build
+
+# System files
+.DS_Store
+Thumbs.db
+
+# Android-specific
+/captures
+.externalNativeBuild
+.cxx
+
+# Signing files (VERY IMPORTANT to keep out of GitHub)
+*.jks
+*.keystore
+*.p12
+
+# Optional: sensitive assets
+# Jeśli w przyszłości dodasz pliki z hasłami, dopisz je tutaj

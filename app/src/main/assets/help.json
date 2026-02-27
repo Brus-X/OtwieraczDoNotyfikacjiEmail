@@ -1,0 +1,12 @@
+{
+  "about_title": "O aplikacji",
+  "about_text": "Aplikacja nasłuchuje na powiadomienia z Gmaila i jeśli pasują one do Twojej konfiguracji, tworzy własne powiadomienie, które po kliknięciu otwiera bezpośrednio stronę (np. lista nowych zamówień, czy wiadomości na stronie dziennika). Aplikacja nie czyta wiadomości, nie gromadzi żadnych informacji. Wszystkie dane zostają loalnie u użytkownika, a wyeksportowana konfiguracja tam, gdzie sam ją dasz, aplikacja nie daje możliwości zapisu haseł, ale Android bądź narzędzie użytkownika już tak. Nie sprawdzam statysyk użytkowania. Jeśli masz jakiś komentarz, to śmiało dodaj go w sklepie Play.",
+  "permissions_title": "Kluczowe uprawnienia",
+  "perm_1": "1. Dostęp do powiadomień [super ważne]: Bez tego aplikacja nie 'widzi' nadchodzących maili. Włącz to w Menu -> Dostęp do powiadomień. Od tego momentu aplikacja może odczytać email i wyświetlić powiadomienie z twoim linkiem",
+  "perm_2": "2. Optymalizacja baterii: Android może uśpić aplikację w tle. Aby tego uniknąć, ustaw dla tej aplikacji tryb 'Nieograniczone' w ustawieniach baterii. Nie bój się, aplikacja nie zjada baterii, a opcję zawsze możesz wyłączyć.",
+  "filters_title": "Konfiguracja filtrów",
+  "filter_sender": "• Nadawca Email: Wpisz nazwę wyświetlaną nadawcy (np. 'Jan Kowalski' lub adres email). Ważne: musi ona wystąpić w powiadomieniu Gmail.",
+  "filter_keyword": "• Słowo kluczowe: Jeśli nie chcesz reagować na każdy mail od danej osoby, wpisz fragment tytułu (np. 'zamówienie'). Puste pole oznacza reakcję na każdy mail od nadawcy.",
+  "backup_title": "Import i Eksport",
+  "backup_text": "Możesz zapisać swoją listę konfiguracji do pliku JSON i przenieść ją na inny telefon lub trzymać kopię na Google Drive. Wybierz odpowiednią opcję z menu w prawym górnym rogu."
+}
