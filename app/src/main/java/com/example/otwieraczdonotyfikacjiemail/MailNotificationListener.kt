@@ -1,11 +1,13 @@
 package com.example.otwieraczdonotyfikacjiemail
 
+import android.Manifest
 import android.app.Notification
 import android.app.PendingIntent
 import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
 import android.content.IntentFilter
+import android.content.pm.PackageManager
 import android.os.Build
 import android.service.notification.NotificationListenerService
 import android.service.notification.StatusBarNotification
@@ -25,22 +27,17 @@ class MailNotificationListener : NotificationListenerService() {
 
     override fun onDestroy() {
         super.onDestroy()
-        testReceiver?.let {
-            unregisterReceiver(it)
-            testReceiver = null
-        }
+        testReceiver?.let { unregisterReceiver(it); testReceiver = null }
     }
 
     private fun registerTestReceiver() {
         val filter = IntentFilter("com.example.otwieracz.CHECK_NOTIFICATIONS")
         testReceiver = object : BroadcastReceiver() {
             override fun onReceive(context: Context?, intent: Intent?) {
-                val targetConfigName = intent?.getStringExtra("name")
-                Log.i(TAG, "--- TEST START (Filtr: ${targetConfigName ?: "WSZYSTKIE"}) ---")
-                checkActiveNotifications(targetConfigName)
+                val configId = intent?.getStringExtra("configId")
+                checkActiveNotifications(configId)
             }
         }
-        
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
             registerReceiver(testReceiver, filter, Context.RECEIVER_EXPORTED)
         } else {
@@ -48,23 +45,30 @@ class MailNotificationListener : NotificationListenerService() {
         }
     }
 
-    private fun checkActiveNotifications(targetConfigName: String?) {
-        val notifications = try { activeNotifications } catch (e: Exception) { 
-            Log.e(TAG, "Błąd pobierania aktywnych powiadomień: ${e.message}")
-            null 
-        }
-        
-        if (notifications == null) {
-            Log.w(TAG, "Brak dostępu do listy powiadomień.")
-            return
-        }
+    private fun checkActiveNotifications(targetId: String?) {
+        val notifications = try { activeNotifications } catch (e: Exception) {
+            AppLogger.log(applicationContext, "ERROR", message = "Błąd pobierania powiadomień: ${e.message}")
+            null
+        } ?: return
 
         val configs = try { ConfigLoader.loadConfigs(applicationContext) } catch (e: Exception) { return }
+        var found = false
 
         for (sbn in notifications) {
             if (sbn.packageName == "com.google.android.gm") {
-                processNotification(sbn, configs, isTest = true, targetConfigName = targetConfigName)
+                if (processNotification(sbn, configs, isTest = true, targetId = targetId)) found = true
             }
+        }
+
+        if (targetId != null) {
+            val config = configs.find { it.id == targetId }
+            val msg = if (found) "TEST SUKCES: Znaleziono powiadomienie." else "TEST PORAŻKA: Nie znaleziono pasującego maila na pasku."
+            AppLogger.log(applicationContext, "TEST", targetId, config?.name, msg)
+            
+            val resultIntent = Intent("com.example.otwieracz.TEST_RESULT")
+            resultIntent.putExtra("success", found)
+            resultIntent.setPackage(packageName)
+            sendBroadcast(resultIntent)
         }
     }
 
@@ -74,72 +78,66 @@ class MailNotificationListener : NotificationListenerService() {
         processNotification(sbn, configs, isTest = false)
     }
 
-    private fun processNotification(sbn: StatusBarNotification, configs: List<NotificationConfig>, isTest: Boolean, targetConfigName: String? = null) {
-        val notification = sbn.notification ?: return
-        val extras = notification.extras ?: return
-        
+    private fun processNotification(sbn: StatusBarNotification, configs: List<NotificationConfig>, isTest: Boolean, targetId: String? = null): Boolean {
+        val extras = sbn.notification.extras ?: return false
         val title = extras.getString(Notification.EXTRA_TITLE) ?: ""
         val text = extras.getCharSequence(Notification.EXTRA_TEXT)?.toString() ?: ""
         val subText = extras.getCharSequence(Notification.EXTRA_SUB_TEXT)?.toString() ?: ""
         val lines = extras.getCharSequenceArray(Notification.EXTRA_TEXT_LINES)
 
+        var matched = false
         for (config in configs) {
-            if (targetConfigName != null && !config.name.equals(targetConfigName, ignoreCase = true)) continue
+            if (targetId != null && config.id != targetId) continue
 
             var match = checkMatch(config, title, text, subText)
             if (!match && lines != null) {
-                for (line in lines) {
-                    if (checkMatch(config, "", line.toString(), "")) {
-                        match = true
-                        break
-                    }
-                }
+                for (line in lines) { if (checkMatch(config, "", line.toString(), "")) { match = true; break } }
             }
 
             if (match) {
-                val displayTitle = if (isTest) "[TEST] $title" else title
-                Log.i(TAG, "✅ Dopasowano: ${config.name} ($displayTitle)")
-                sendNotification(config.name, displayTitle, config.messageUrl, config.name.hashCode())
-                if (!isTest) break 
+                matched = true
+                val fullContent = "Nadawca: $title\nTemat: $text\nAdresat: $subText"
+                if (!isTest) {
+                    AppLogger.log(applicationContext, "INFO", config.id, config.name, "Wyzwalacz (Temat): $text")
+                }
+                sendNotification(config, fullContent, isTest)
             }
         }
+        return matched
     }
 
     private fun checkMatch(config: NotificationConfig, title: String, text: String, subText: String): Boolean {
         val senderMatch = title.contains(config.emailSender, ignoreCase = true) ||
                          text.contains(config.emailSender, ignoreCase = true) ||
                          subText.contains(config.emailSender, ignoreCase = true)
-
-        val keyword = config.subjectKeyword ?: "*"
-        val subjectMatch = if (keyword == "*" || keyword.isEmpty()) true else {
-            title.contains(keyword, ignoreCase = true) || text.contains(keyword, ignoreCase = true)
-        }
+        val keyword = config.subjectKeyword ?: ""
+        val subjectMatch = if (keyword.isEmpty() || keyword == "*") true else title.contains(keyword, ignoreCase = true) || text.contains(keyword, ignoreCase = true)
         return senderMatch && subjectMatch
     }
 
-    private fun sendNotification(configName: String, emailTitle: String, messageUrl: String, notificationId: Int) {
-        val intent = Intent(this, MainActivity::class.java)
-        intent.putExtra("OPEN_URL", messageUrl)
+    private fun sendNotification(config: NotificationConfig, fullDetails: String, isTest: Boolean) {
+        val intent = Intent(this, MainActivity::class.java).putExtra("OPEN_URL", config.messageUrl)
         intent.flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK
+        val pendingIntent = PendingIntent.getActivity(this, config.id.hashCode(), intent, PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT)
 
-        val pendingIntent = PendingIntent.getActivity(
-            this, configName.hashCode(), intent, PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT
-        )
+        val notificationTitle = if (isTest) "[TEST] ${config.name}" else config.name
 
-        val channelId = "messages_channel"
-        val builder = NotificationCompat.Builder(this, channelId)
+        val builder = NotificationCompat.Builder(this, "messages_channel")
             .setSmallIcon(android.R.drawable.ic_dialog_email)
-            .setContentTitle("$configName: $emailTitle")
+            .setContentTitle(notificationTitle)
             .setContentText("Kliknij, aby otworzyć stronę")
+            .setStyle(NotificationCompat.BigTextStyle().bigText("Szczegóły Gmail:\n$fullDetails"))
             .setContentIntent(pendingIntent)
             .setPriority(NotificationCompat.PRIORITY_HIGH)
-            .setDefaults(NotificationCompat.DEFAULT_ALL)
             .setAutoCancel(true)
 
-        try {
-            NotificationManagerCompat.from(this).notify(notificationId, builder.build())
-        } catch (e: Exception) {
-            Log.e(TAG, "Błąd przy wysyłaniu powiadomienia: ${e.message}")
+        val nm = NotificationManagerCompat.from(this)
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU && checkSelfPermission(Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED) {
+            AppLogger.log(applicationContext, "ERROR", config.id, config.name, "Brak uprawnienia POST_NOTIFICATIONS")
+            return
+        }
+        try { nm.notify(config.id.hashCode(), builder.build()) } catch (e: Exception) {
+            AppLogger.log(applicationContext, "ERROR", config.id, config.name, "Błąd notify: ${e.message}")
         }
     }
 }
