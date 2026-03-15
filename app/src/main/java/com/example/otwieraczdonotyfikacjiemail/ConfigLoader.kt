@@ -3,6 +3,7 @@ package com.example.otwieraczdonotyfikacjiemail
 import android.content.Context
 import android.util.Log
 import org.json.JSONArray
+import org.json.JSONObject
 import java.io.File
 
 object ConfigLoader {
@@ -14,7 +15,7 @@ object ConfigLoader {
             val file = File(context.filesDir, FILE_NAME)
             
             if (!file.exists()) {
-                Log.d(TAG, "Plik nie istnieje, kopiuję z assets...")
+                if (BuildConfig.DEBUG) Log.d(TAG, "Plik nie istnieje, kopiuję z assets...")
                 val jsonFromAssets = context.assets.open(FILE_NAME).bufferedReader(Charsets.UTF_8).use { it.readText() }
                 file.writeText(jsonFromAssets, Charsets.UTF_8)
             }
@@ -22,8 +23,7 @@ object ConfigLoader {
             val jsonString = file.readText(Charsets.UTF_8)
             parseJson(jsonString)
         } catch (e: Exception) {
-            Log.e(TAG, "Błąd krytyczny ładowania configu: ${e.message}")
-            // W razie błędu spróbuj chociaż wczytać surowy plik z assets
+            if (BuildConfig.DEBUG) Log.e(TAG, "Błąd krytyczny ładowania configu: ${e.message}")
             try {
                 val raw = context.assets.open(FILE_NAME).bufferedReader(Charsets.UTF_8).use { it.readText() }
                 parseJson(raw)
@@ -38,13 +38,16 @@ object ConfigLoader {
         val configs = mutableListOf<NotificationConfig>()
         for (i in 0 until jsonArray.length()) {
             val obj = jsonArray.getJSONObject(i)
-            configs.add(NotificationConfig(
-                name = obj.getString("name"),
-                startUrl = obj.optString("startUrl", ""),
-                messageUrl = obj.getString("messageUrl"),
-                emailSender = obj.getString("emailSender"),
-                subjectKeyword = obj.optString("subjectKeyword", "")
-            ))
+            configs.add(
+                NotificationConfig(
+                    id = obj.optString("id", java.util.UUID.randomUUID().toString()),
+                    name = obj.getString("name"),
+                    startUrl = obj.optString("startUrl", ""),
+                    messageUrl = obj.getString("messageUrl"),
+                    emailSender = obj.getString("emailSender"),
+                    subjectKeyword = obj.optString("subjectKeyword", "")
+                )
+            )
         }
         return configs.sortedBy { it.name }
     }
@@ -53,7 +56,8 @@ object ConfigLoader {
         try {
             val jsonArray = JSONArray()
             for (config in configs) {
-                val obj = org.json.JSONObject()
+                val obj = JSONObject()
+                obj.put("id", config.id)
                 obj.put("name", config.name)
                 obj.put("startUrl", config.startUrl)
                 obj.put("messageUrl", config.messageUrl)
@@ -64,7 +68,7 @@ object ConfigLoader {
             val file = File(context.filesDir, FILE_NAME)
             file.writeText(jsonArray.toString(2), Charsets.UTF_8)
         } catch (e: Exception) {
-            Log.e(TAG, "Błąd zapisu configu: ${e.message}")
+            if (BuildConfig.DEBUG) Log.e(TAG, "Błąd zapisu configu: ${e.message}")
         }
     }
 }
