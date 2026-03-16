@@ -85,37 +85,22 @@ class MailNotificationListener : NotificationListenerService() {
         val subText = extras.getCharSequence(Notification.EXTRA_SUB_TEXT)?.toString() ?: ""
         val lines = extras.getCharSequenceArray(Notification.EXTRA_TEXT_LINES)
 
-        var matched = false
-        for (config in configs) {
-            if (targetId != null && config.id != targetId) continue
+        val matchedConfigs = NotificationMatcher.findMatches(
+            if (targetId != null) configs.filter { it.id == targetId } else configs,
+            title, text, subText, lines?.map { it }?.toTypedArray()
+        )
 
-            var match = checkMatch(config, title, text, subText)
-            if (!match && lines != null) {
-                for (line in lines) { if (checkMatch(config, "", line.toString(), "")) { match = true; break } }
+        for (config in matchedConfigs) {
+            if (!isTest) {
+                AppLogger.log(applicationContext, "INFO", config.id, config.name, "Wyzwalacz: $title")
             }
-
-            if (match) {
-                matched = true
-                val fullContent = "Nadawca: $title\nTemat: $text\nAdresat: $subText"
-                if (!isTest) {
-                    AppLogger.log(applicationContext, "INFO", config.id, config.name, "Wyzwalacz (Temat): $text")
-                }
-                sendNotification(config, fullContent, isTest)
-            }
+            sendNotification(config, title, isTest)
         }
-        return matched
+        
+        return matchedConfigs.isNotEmpty()
     }
 
-    private fun checkMatch(config: NotificationConfig, title: String, text: String, subText: String): Boolean {
-        val senderMatch = title.contains(config.emailSender, ignoreCase = true) ||
-                         text.contains(config.emailSender, ignoreCase = true) ||
-                         subText.contains(config.emailSender, ignoreCase = true)
-        val keyword = config.subjectKeyword ?: ""
-        val subjectMatch = if (keyword.isEmpty() || keyword == "*") true else title.contains(keyword, ignoreCase = true) || text.contains(keyword, ignoreCase = true)
-        return senderMatch && subjectMatch
-    }
-
-    private fun sendNotification(config: NotificationConfig, fullDetails: String, isTest: Boolean) {
+    private fun sendNotification(config: NotificationConfig, emailTitle: String, isTest: Boolean) {
         val intent = Intent(this, MainActivity::class.java).putExtra("OPEN_URL", config.messageUrl)
         intent.flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK
         val pendingIntent = PendingIntent.getActivity(this, config.id.hashCode(), intent, PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT)
@@ -126,7 +111,7 @@ class MailNotificationListener : NotificationListenerService() {
             .setSmallIcon(android.R.drawable.ic_dialog_email)
             .setContentTitle(notificationTitle)
             .setContentText("Kliknij, aby otworzyć stronę")
-            .setStyle(NotificationCompat.BigTextStyle().bigText("Szczegóły Gmail:\n$fullDetails"))
+            .setStyle(NotificationCompat.BigTextStyle().bigText("Szczegóły Gmail:\nNadawca: $notificationTitle\nTytuł: $emailTitle"))
             .setContentIntent(pendingIntent)
             .setPriority(NotificationCompat.PRIORITY_HIGH)
             .setAutoCancel(true)
