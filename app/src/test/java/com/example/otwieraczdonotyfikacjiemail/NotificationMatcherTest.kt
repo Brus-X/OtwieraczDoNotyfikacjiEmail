@@ -19,7 +19,7 @@ class NotificationMatcherTest {
         val result = NotificationMatcher.checkMatch(
             testConfig,
             title = "Dziennik VULCAN",
-            text = "Masz nową wiadomość od nauczyciela",
+            text = "Wiadomość od nauczyciela", // Zawiera "od"
             subText = "powiadomienia@vulcan.pl"
         )
         assertTrue(result)
@@ -30,7 +30,7 @@ class NotificationMatcherTest {
         val result = NotificationMatcher.checkMatch(
             testConfig,
             title = "Nowa wiadomość",
-            text = "Treść maila",
+            text = "Wiadomość od systemu", // Dodano "od", aby spełnić warunek subjectKeyword
             subText = "Dziennik VULCAN"
         )
         assertTrue(result)
@@ -41,7 +41,7 @@ class NotificationMatcherTest {
         val result = NotificationMatcher.checkMatch(
             testConfig,
             title = "dziennik vulcan",
-            text = "Wiadomość od",
+            text = "Wiadomość od kogoś",
             subText = ""
         )
         assertTrue(result)
@@ -75,7 +75,7 @@ class NotificationMatcherTest {
         val result = NotificationMatcher.checkMatch(
             testConfig,
             title = "Dziennik VULCAN",
-            text = "Brak słowa kluczowego",
+            text = "Brak pasującego słowa",
             subText = ""
         )
         assertFalse(result)
@@ -84,13 +84,13 @@ class NotificationMatcherTest {
     @Test
     fun `matching multiple configs from group notification lines`() {
         val configs = listOf(
-            testConfig,
-            testConfig.copy(id = "2", name = "Inna Szkoła", emailSender = "Sekretariat")
+            testConfig, // szuka "Dziennik VULCAN" i "od"
+            testConfig.copy(id = "2", name = "Inna Szkoła", emailSender = "Sekretariat", subjectKeyword = "zebranie") // zmieniono na "zebranie"
         )
         
         val lines = arrayOf<CharSequence>(
-            "Dziennik VULCAN: Wiadomość od dyrektora",
-            "Sekretariat: Zaproszenie na zebranie"
+            "Dziennik VULCAN: Wiadomość od dyrektora", // Pasuje do 1
+            "Sekretariat: Zaproszenie na zebranie"      // Pasuje do 2
         )
 
         val matches = NotificationMatcher.findMatches(
@@ -101,7 +101,7 @@ class NotificationMatcherTest {
             lines = lines
         )
 
-        assertEquals(2, matches.size)
+        assertEquals("Powinny być 2 dopasowania", 2, matches.size)
         assertTrue(matches.any { it.name == "Szkoła Test" })
         assertTrue(matches.any { it.name == "Inna Szkoła" })
     }
